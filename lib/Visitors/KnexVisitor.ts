@@ -1,12 +1,7 @@
 import { Recognizer, RecognitionException } from "antlr4ts";
 import { ANTLRErrorListener } from "antlr4ts/ANTLRErrorListener";
-import { ErrorNode } from "antlr4ts/tree/ErrorNode";
-import { ParseTree } from "antlr4ts/tree/ParseTree";
-import { RuleNode } from "antlr4ts/tree/RuleNode";
-import { TerminalNode } from "antlr4ts/tree/TerminalNode";
 import { Knex } from "knex";
-import { Array_operatorContext, BoolContext, Bool_arrayContext, Bool_array_operationContext, Bool_operationContext, Bool_operatorContext, ClauseContext, ConjunctionContext, FieldContext, NullstringContext, NumberContext, Number_arrayContext, Number_array_operationContext, Number_operationContext, Number_operatorContext, OperationContext, RaqlContext, StringContext, String_arrayContext, String_array_operationContext, String_operationContext, String_operatorContext } from "../Grammar/RAQLParser";
-import { RAQLVisitor } from "../Grammar/RAQLVisitor";
+import { Bool_array_operationContext, Bool_operationContext, ClauseContext, Number_array_operationContext, Number_operationContext, OperationContext, String_array_operationContext, String_operationContext, String_operatorContext } from "../Grammar/RAQLParser";
 
 export class KnexErrorListener<TSymbol> implements ANTLRErrorListener<TSymbol> {
   valid = true;
@@ -17,34 +12,38 @@ export class KnexErrorListener<TSymbol> implements ANTLRErrorListener<TSymbol> {
   }
 }
 
-export class KnexVisitor<TRecord extends {} = any, TResult extends {} = unknown[]> implements RAQLVisitor<Knex.QueryBuilder<TRecord, TResult>> {
+export class KnexVisitor<TRecord extends {} = any, TResult extends {} = unknown[]>{
   queryBuilder: Knex.QueryBuilder<TRecord, TResult>;
   constructor(queryBuilder: Knex.QueryBuilder<TRecord, TResult>) {
     this.queryBuilder = queryBuilder;
   }
-  visitRaql?: ((ctx: RaqlContext) => Knex.QueryBuilder<TRecord, TResult>) | undefined;
-  visitClause(ctx: ClauseContext): Knex.QueryBuilder<TRecord, TResult> {
+
+  visitClause(ctx: ClauseContext, queryBuilder: Knex.QueryBuilder<TRecord, TResult> = this.queryBuilder, or: boolean = false): Knex.QueryBuilder<TRecord, TResult> {
     var conjunction = ctx.conjunction();
     var clauses = ctx.clause();
     var operation = ctx.operation();
 
     if (conjunction != null && clauses.length == 2) {
-      var isAnd = conjunction.text.toLowerCase().trim() === "and";
-      var clause1 = this.visitClause(clauses[0]);
-      var clause2 = this.visitClause(clauses[clauses.length - 1]);
-      return isAnd ? clause1.andWhere(clause2) : clause1.orWhere(clause2);
+      var isOr = conjunction.text.toLowerCase().trim() === "or";
+      var clause1 = this.visitClause(clauses[0], queryBuilder);
+      var clause2 = this.visitClause(clauses[clauses.length - 1], queryBuilder);
+      if (or) {
+        queryBuilder.orWhere((builder) => this.visitClause(clauses[clauses.length - 1], this.visitClause(clauses[0], builder, false), isOr));
+      } else {
+        queryBuilder.where((builder) => this.visitClause(clauses[clauses.length - 1], this.visitClause(clauses[0], builder, false), isOr));
+      }
     }
     else if (conjunction == null && clauses.length == 1) {
-      return this.visitClause(clauses[0]);
+      this.visitClause(clauses[0], queryBuilder, or);
     }
     else if (conjunction == null && operation != null) {
-      return this.visitOperation(operation);
+      this.visitOperation(operation, queryBuilder, or);
     }
 
-    return this.queryBuilder;
+    return queryBuilder;
   }
-  visitConjunction?: ((ctx: ConjunctionContext) => Knex.QueryBuilder<TRecord, TResult>) | undefined;
-  visitOperation(ctx: OperationContext): Knex.QueryBuilder<TRecord, TResult> {
+  
+  visitOperation(ctx: OperationContext, queryBuilder: Knex.QueryBuilder<TRecord, TResult>, or: boolean = false): Knex.QueryBuilder<TRecord, TResult> {
     
     var stringOperation = ctx.string_operation();
     var stringArrayOperation = ctx.string_array_operation();
@@ -61,120 +60,102 @@ export class KnexVisitor<TRecord extends {} = any, TResult extends {} = unknown[
     var isBoolArrayOperation = boolArrayOperation != null;
 
     if (isStringOperation) {
-      return this.visitString_operation(stringOperation!!);
+      return this.visitString_operation(stringOperation!!, queryBuilder, or);
     }
     else if (isStringArrayOperation) {
-      return this.visitString_array_operation(stringArrayOperation!!);
+      return this.visitString_array_operation(stringArrayOperation!!, queryBuilder, or);
     }
     else if (isNumberOperation) {
-      return this.visitNumber_operation(numberOperation!!);
+      return this.visitNumber_operation(numberOperation!!, queryBuilder, or);
 
     }
     else if (isNumberArrayOperation) {
-      return this.visitNumber_array_operation(numberArrayOperation!!);
+      return this.visitNumber_array_operation(numberArrayOperation!!, queryBuilder, or);
 
     }
     else if (isBoolOperation) {
-      return this.visitBool_operation(boolOperation!!);
+      return this.visitBool_operation(boolOperation!!, queryBuilder, or);
 
     }
     else if (isBoolArrayOperation) {
-      return this.visitBool_array_operation(boolArrayOperation!!);
+      return this.visitBool_array_operation(boolArrayOperation!!, queryBuilder, or);
 
     }
-    return this.queryBuilder;
+    return queryBuilder;
   }
-  visitString_array_operation(ctx: String_array_operationContext): Knex.QueryBuilder<TRecord, TResult> {
+
+  visitString_array_operation(ctx: String_array_operationContext, queryBuilder: Knex.QueryBuilder<TRecord, TResult>, or: boolean = false): Knex.QueryBuilder<TRecord, TResult> {
     
     var field = ctx.field()?.text;
     var operator = this.operatorToStandard(ctx.array_operator().text.trim());
     var value = ctx.string_array()?.string().map(s => s.text.replace(/^\'+/, '').replace(/\'+$/, ''));
 
     if (field != null && value != null) {
-      return this.queryBuilder.where(field, operator, value);
+      return queryBuilder.where(field, operator, value);
     }
 
-    return this.queryBuilder;
+    return queryBuilder;
   }
-  visitNumber_array_operation(ctx: Number_array_operationContext): Knex.QueryBuilder<TRecord, TResult> {
+
+  visitNumber_array_operation(ctx: Number_array_operationContext, queryBuilder: Knex.QueryBuilder<TRecord, TResult>, or: boolean = false): Knex.QueryBuilder<TRecord, TResult> {
     
     var field = ctx.field()?.text;
     var operator = this.operatorToStandard(ctx.array_operator().text.trim());
     var numbers = ctx.number_array()?.number();
 
     if (field != null && numbers != null) {
-      return this.queryBuilder.where(field, operator, numbers);
+      return queryBuilder.where(field, operator, numbers);
     }
 
-    return this.queryBuilder;
+    return queryBuilder;
   }
-  visitBool_array_operation(ctx: Bool_array_operationContext): Knex.QueryBuilder<TRecord, TResult> {
+
+  visitBool_array_operation(ctx: Bool_array_operationContext, queryBuilder: Knex.QueryBuilder<TRecord, TResult>, or: boolean = false): Knex.QueryBuilder<TRecord, TResult> {
     var field = ctx.field()?.text;
     var operator = this.operatorToStandard(ctx.array_operator().text.trim());
     var value = ctx.bool_array()?.bool().map(s => s.text.toLowerCase() == "true");
 
     if (field != null && value != null) {
-      return this.queryBuilder.where(field, operator, value);
+      return queryBuilder.where(field, operator, value);
     }
 
-    return this.queryBuilder;
+    return queryBuilder;
   }
-  visitArray_operator?: ((ctx: Array_operatorContext) => Knex.QueryBuilder<TRecord, TResult>) | undefined;
-  visitString_operation(ctx: String_operationContext): Knex.QueryBuilder<TRecord, TResult> {
+  
+  visitString_operation(ctx: String_operationContext, queryBuilder: Knex.QueryBuilder<TRecord, TResult>, or: boolean = false): Knex.QueryBuilder<TRecord, TResult> {
     var field = ctx.field()?.text;
     var operator = this.operatorToStandard(ctx.string_operator()?.text.toLowerCase().trim());
     var value = ctx.string()?.text.replace(/^\'+/, '').replace(/\'+$/, '');
 
     if (field != null && value != null) {
-      this.queryBuilder.where(field, operator, value);
+      queryBuilder.where(field, operator, value);
     }
-    return this.queryBuilder;
+    return queryBuilder;
   }
-  visitString_operator?: ((ctx: String_operatorContext) => Knex.QueryBuilder<TRecord, TResult>) | undefined;
-  visitNumber_operation(ctx: Number_operationContext): Knex.QueryBuilder<TRecord, TResult> {
+  
+  visitNumber_operation(ctx: Number_operationContext, queryBuilder: Knex.QueryBuilder<TRecord, TResult>, or: boolean = false): Knex.QueryBuilder<TRecord, TResult> {
     
     var field = ctx.field()?.text;
     var operator = this.operatorToStandard(ctx.number_operator()?.text.toLowerCase().trim());
     var number = ctx.number()?.text;
 
     if (field != null && operator != null && number != null) {
-      return this.queryBuilder.where(field, operator, number);
+      return queryBuilder.where(field, operator, number);
     }
 
-    return this.queryBuilder;
+    return queryBuilder;
   }
-  visitNumber_operator?: ((ctx: Number_operatorContext) => Knex.QueryBuilder<TRecord, TResult>) | undefined;
-  visitBool_operation(ctx: Bool_operationContext): Knex.QueryBuilder<TRecord, TResult> {
+  
+  visitBool_operation(ctx: Bool_operationContext, queryBuilder: Knex.QueryBuilder<TRecord, TResult>, or: boolean = false): Knex.QueryBuilder<TRecord, TResult> {
     var field = ctx.field()?.text;
     var operator = this.operatorToStandard(ctx.bool_operator()?.text.toLowerCase().trim());
     var value = ctx.bool()?.text == "true";
 
     if (field != null && operator != null) {
-      return this.queryBuilder.where(field, operator, value);
+      return queryBuilder.where(field, operator, value);
     }
 
-    return this.queryBuilder;
-  }
-  visitBool_operator?: ((ctx: Bool_operatorContext) => Knex.QueryBuilder<TRecord, TResult>) | undefined;
-  visitField?: ((ctx: FieldContext) => Knex.QueryBuilder<TRecord, TResult>) | undefined;
-  visitNullstring?: ((ctx: NullstringContext) => Knex.QueryBuilder<TRecord, TResult>) | undefined;
-  visitString?: ((ctx: StringContext) => Knex.QueryBuilder<TRecord, TResult>) | undefined;
-  visitString_array?: ((ctx: String_arrayContext) => Knex.QueryBuilder<TRecord, TResult>) | undefined;
-  visitNumber?: ((ctx: NumberContext) => Knex.QueryBuilder<TRecord, TResult>) | undefined;
-  visitNumber_array?: ((ctx: Number_arrayContext) => Knex.QueryBuilder<TRecord, TResult>) | undefined;
-  visitBool?: ((ctx: BoolContext) => Knex.QueryBuilder<TRecord, TResult>) | undefined;
-  visitBool_array?: ((ctx: Bool_arrayContext) => Knex.QueryBuilder<TRecord, TResult>) | undefined;
-  visit(tree: ParseTree): Knex.QueryBuilder<TRecord, TResult> {
-    throw new Error('Method not implemented.');
-  }
-  visitChildren(node: RuleNode): Knex.QueryBuilder<TRecord, TResult> {
-    throw new Error('Method not implemented.');
-  }
-  visitTerminal(node: TerminalNode): Knex.QueryBuilder<TRecord, TResult> {
-    throw new Error('Method not implemented.');
-  }
-  visitErrorNode(node: ErrorNode): Knex.QueryBuilder<TRecord, TResult> {
-    throw new Error('Method not implemented.');
+    return queryBuilder;
   }
 
   operatorToStandard(operator: string): string {

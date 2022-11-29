@@ -3,10 +3,10 @@ import { RAQLLexer } from './Grammar/RAQLLexer';
 import { RAQLParser } from './Grammar/RAQLParser';
 import { KnexErrorListener, KnexVisitor } from './Visitors/KnexVisitor';
 import { Token } from 'antlr4ts/Token';
-import Knex from 'knex';
+import knex from 'knex';
 
 export function RAQLKnex(config:any) {
-  Knex.QueryBuilder.extend('raql', function (query: string) {
+  knex.QueryBuilder.extend('raql', function (query: string) {
     const chars = new ANTLRInputStream(query);
     const lexer = new RAQLLexer(chars);
     const tokens = new CommonTokenStream(lexer);
@@ -18,10 +18,10 @@ export function RAQLKnex(config:any) {
 
     if (!errorListner.valid) {
       console.error(errorListner.errorMessage);
-      return this.where(false);
+      return this.where(true);
     }
 
     return new KnexVisitor(this).visitClause(tree.clause());
   });
-  return Knex(config);
+  return knex(config);
 }

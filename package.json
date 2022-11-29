@@ -1,6 +1,6 @@
 {
-  "name": "@higrow/raql.ts",
-  "version": "1.1.0",
+  "name": "@higrow/raql.js",
+  "version": "1.0.0",
   "description": "Rest API Query Language",
   "main": "out/plugin.cjs.js",
   "module": "out/index.js",

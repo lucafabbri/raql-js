@@ -4,7 +4,7 @@ export default {
         {
             file: 'out/plugin.js',
             format: 'iife',
-            name: 'raql.ts',
+            name: 'raql.js',
             sourcemap: true,
             inlineDynamicImports: true,
             extend: true
