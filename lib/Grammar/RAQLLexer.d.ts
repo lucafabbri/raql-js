@@ -1,0 +1,38 @@
+import { ATN } from "antlr4ts/atn/ATN";
+import { CharStream } from "antlr4ts/CharStream";
+import { Lexer } from "antlr4ts/Lexer";
+import { Vocabulary } from "antlr4ts/Vocabulary";
+export declare class RAQLLexer extends Lexer {
+    static readonly T__0 = 1;
+    static readonly T__1 = 2;
+    static readonly T__2 = 3;
+    static readonly T__3 = 4;
+    static readonly T__4 = 5;
+    static readonly T__5 = 6;
+    static readonly IN = 7;
+    static readonly BASE_OPERATOR = 8;
+    static readonly STRING_OPERATOR = 9;
+    static readonly NUMBER_OPERATOR = 10;
+    static readonly CONJUNCTIONS = 11;
+    static readonly NUMBER = 12;
+    static readonly WORD = 13;
+    static readonly STRING = 14;
+    static readonly BOOLEAN = 15;
+    static readonly NULL = 16;
+    static readonly channelNames: string[];
+    static readonly modeNames: string[];
+    static readonly ruleNames: string[];
+    private static readonly _LITERAL_NAMES;
+    private static readonly _SYMBOLIC_NAMES;
+    static readonly VOCABULARY: Vocabulary;
+    get vocabulary(): Vocabulary;
+    constructor(input: CharStream);
+    get grammarFileName(): string;
+    get ruleNames(): string[];
+    get serializedATN(): string;
+    get channelNames(): string[];
+    get modeNames(): string[];
+    static readonly _serializedATN: string;
+    static __ATN: ATN;
+    static get _ATN(): ATN;
+}
